@@ -199,14 +199,15 @@ function sha256 {
 # Display system uptime
 function uptime {
     if ($PSVersionTable.PSVersion.Major -eq 5) {
-        $lastBootUpTime = Get-WmiObject win32_operatingsystem | Select-Object @{Name='LastBootUpTime'; Expression={$_.ConverttoDateTime($_.lastbootuptime)}}
-        $uptime = (Get-Date) - $lastBootUpTime.LastBootUpTime
+        $lastBootUpTime = Get-WmiObject win32_operatingsystem |
+            Select-Object -ExpandProperty LastBootUpTime |
+            ForEach-Object { $_.ConvertToDateTime($_) }
     } else {
-        $since = net statistics workstation | Select-String "since" | ForEach-Object { $_.ToString().Replace('Statistics since ', '') }
-        $lastBootUpTime = [DateTime]::ParseExact($since, "M/d/yyyy h:mm:ss AM/PM", [Globalization.CultureInfo]::InvariantCulture)
-        $uptime = (Get-Date) - $lastBootUpTime
+        $lastBootUpTime = (Get-CimInstance Win32_OperatingSystem).LastBootUpTime
     }
-    return "Online since $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes"
+
+    $uptime = (Get-Date) - $lastBootUpTime
+    "Online since $($uptime.Days) days, $($uptime.Hours) hours, $($uptime.Minutes) minutes"
 }
 
 
@@ -292,6 +293,21 @@ function top {
         }
         finally {
             $ProgressPreference = $pp 
+        }
+    }
+}
+
+function touch {
+    param (
+        [Parameter(Mandatory = $true, ValueFromRemainingArguments = $true)]
+        [string[]]$files
+    )
+
+    foreach ($file in $files) {
+        if (Test-Path $file) {
+            (Get-Item $file).LastWriteTime = Get-Date
+        } else {
+            New-Item -ItemType File -Path $file | Out-Null
         }
     }
 }
